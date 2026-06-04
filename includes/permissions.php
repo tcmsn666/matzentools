@@ -5,27 +5,38 @@ function menuTreeForUser(array $user): array
 {
     $sql = "SELECT mi.* FROM menu_items mi
             WHERE mi.is_active = 1
-              AND (:is_admin = 1 OR mi.admin_only = 0)
-              AND (:is_admin = 1 OR EXISTS (
+              AND (:is_admin_1 = 1 OR mi.admin_only = 0)
+              AND (:is_admin_2 = 1 OR EXISTS (
                   SELECT 1 FROM user_menu_permissions ump
                   WHERE ump.menu_item_id = mi.id AND ump.user_id = :user_id AND ump.can_access = 1
               ))
             ORDER BY COALESCE(mi.parent_id, mi.id), mi.parent_id IS NOT NULL, mi.sort_order, mi.title";
+
+    $isAdmin = $user['role'] === 'admin' ? 1 : 0;
+
     $stmt = db()->prepare($sql);
-    $stmt->execute(['is_admin' => $user['role'] === 'admin' ? 1 : 0, 'user_id' => (int)$user['id']]);
+    $stmt->execute([
+        'is_admin_1' => $isAdmin,
+        'is_admin_2' => $isAdmin,
+        'user_id' => (int)$user['id'],
+    ]);
+
     $items = $stmt->fetchAll();
     $tree = [];
+
     foreach ($items as $item) {
         if ($item['parent_id'] === null) {
             $item['children'] = [];
             $tree[$item['id']] = $item;
         }
     }
+
     foreach ($items as $item) {
         if ($item['parent_id'] !== null && isset($tree[$item['parent_id']])) {
             $tree[$item['parent_id']]['children'][] = $item;
         }
     }
+
     return array_values($tree);
 }
 
